@@ -186,7 +186,7 @@ public class MainActivity extends AppCompatActivity {
     private File createImageFile() throws IOException {
 // Create an image file name
         String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
-        String imageFileName = "_caption_" + timeStamp + "_";
+        String imageFileName = "caption_" + timeStamp + "_";
         File storageDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES);
         File image = File.createTempFile(imageFileName, ".jpg", storageDir);
         mCurrentPhotoPath = image.getAbsolutePath();
@@ -214,18 +214,7 @@ public class MainActivity extends AppCompatActivity {
         displayPhoto(photos.get(index));
     }
 
-    private String getRealPathFromURI(Uri contentURI, Activity activity) {
-        Cursor cursor = activity.getContentResolver()
-                .query(contentURI, null, null, null, null);
-        if (cursor == null) { // Source is Dropbox or other similar local file
-            // path
-            return contentURI.getPath();
-        } else {
-            cursor.moveToFirst();
-            int idx = cursor.getColumnIndex(MediaStore.Images.ImageColumns.DATA);
-            return cursor.getString(idx);
-        }
-    }
+
 
     private void displayPhoto(String path) throws IOException {
         ImageView iv = (ImageView) findViewById(R.id.ivGallery);
@@ -252,7 +241,7 @@ public class MainActivity extends AppCompatActivity {
 
             iv.setImageBitmap(BitmapFactory.decodeFile(photos.get(index)));
 
-            tvLocation.setText(Debug.getLocation());
+            tvLocation.setText(lat + " " + lng);
 
 
             et.setText(attr[1]);
@@ -322,7 +311,7 @@ public class MainActivity extends AppCompatActivity {
         public void updatePhoto(String path, String caption) {
             String[] attr = path.split("_");
             if (attr.length >= 3) {
-                File to = new File(attr[0] + "_" + caption + "_" + attr[2] + "_" + attr[3]);
+                File to = new File(attr[0] + "_" + caption + "_" + attr[1] + "_" + attr[2]);
                 File from = new File(path);
                 from.renameTo(to);
             }
