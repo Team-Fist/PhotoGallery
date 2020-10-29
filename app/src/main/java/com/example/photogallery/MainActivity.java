@@ -5,8 +5,11 @@ import android.Manifest;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.graphics.BitmapFactory;
+import android.location.Location;
+import android.location.LocationManager;
 import android.media.ExifInterface;
 import android.net.Uri;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.provider.MediaStore;
@@ -19,6 +22,7 @@ import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.constraintlayout.motion.widget.Debug;
 import androidx.core.app.ActivityCompat;
 import androidx.core.content.ContextCompat;
 import androidx.core.content.FileProvider;
@@ -35,13 +39,11 @@ public class MainActivity extends AppCompatActivity {
     static final int REQUEST_IMAGE_CAPTURE = 1;
     static final int SEARCH_ACTIVITY_REQUEST_CODE = 2;
     public static final int CAMERA_PERM_CODE = 101;
+    final private int REQUEST_CODE_ASK_PERMISSIONS = 123;
     String mCurrentPhotoPath;
     private ArrayList<String> photos = null;
     private int index = 0;
     Button snap, share;
-
-
-
 
 
     @Override
@@ -60,25 +62,25 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
+
         share.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                photos = findPhotos(new Date(20200101),new Date(20201231),"");
-                File file = new File(Environment.getExternalStorageDirectory()
-                        .getAbsolutePath(), photos.get(1));
+                File file = new File(getFilesDir(), photos.get(index));
 
-                Intent intent = new Intent();
-                String shareText = "Something to share with you.";
-                Uri photo = FileProvider.getUriForFile(MainActivity.this, MainActivity.this.getApplicationContext().getPackageName() + ".provider", file);
-                intent.putExtra(Intent.EXTRA_TEXT, shareText);
-                intent.putExtra(Intent.EXTRA_STREAM, photo);
-                intent.setType("image/jpeg");
-                intent.setFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-                intent.setFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                startActivity(Intent.createChooser(intent, null));
+                Intent shareIntent = new Intent();
+
+                shareIntent.setAction(Intent.ACTION_SEND);
+                shareIntent.setType("image/jpeg");
+                shareIntent.setFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                shareIntent.putExtra(Intent.EXTRA_STREAM, photos.get(index));
+
+
+                startActivity(Intent.createChooser(shareIntent, "send"));
+
+                Toast.makeText(getApplicationContext(), Uri.fromFile(file).toString(), Toast.LENGTH_SHORT).show();
             }
         });
-
 
         if (photos.size() == 0) {
             try {
@@ -89,16 +91,13 @@ public class MainActivity extends AppCompatActivity {
         } else {
             try {
                 displayPhoto(photos.get(index));
+
             } catch (IOException e) {
                 e.printStackTrace();
             }
         }
 
-
     }
-
-
-
 
 
     public void toSearch(View view) {
@@ -108,9 +107,9 @@ public class MainActivity extends AppCompatActivity {
     }
 
     private void askCameraPermissions() {
-        if(ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED){
-            ActivityCompat.requestPermissions(this,new String[] {Manifest.permission.CAMERA}, CAMERA_PERM_CODE);
-        }else {
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
+            ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.CAMERA}, CAMERA_PERM_CODE);
+        } else {
             takePhoto();
         }
 
@@ -118,12 +117,27 @@ public class MainActivity extends AppCompatActivity {
 
     @Override
     public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
-        if(requestCode == CAMERA_PERM_CODE){
-            if(grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED){
-                takePhoto();
-            }else {
-                Toast.makeText(this, "Camera Permission is Required to Use camera.", Toast.LENGTH_SHORT).show();
-            }
+//        if(requestCode == CAMERA_PERM_CODE){
+//            if(grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED){
+//                takePhoto();
+//            }else {
+//                Toast.makeText(this, "Camera Permission is Required to Use camera.", Toast.LENGTH_SHORT).show();
+//            }
+//        }
+
+        switch (requestCode) {
+            case CAMERA_PERM_CODE:
+                if (grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
+                    takePhoto();
+                } else {
+                    Toast.makeText(this, "Camera Permission is Required to Use camera.", Toast.LENGTH_SHORT).show();
+                }
+                break;
+            case REQUEST_CODE_ASK_PERMISSIONS:
+
+                break;
+            default:
+                super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         }
     }
 
@@ -167,11 +181,10 @@ public class MainActivity extends AppCompatActivity {
         String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
         String imageFileName = "_caption_" + timeStamp + "_";
         File storageDir = getExternalFilesDir(Environment.DIRECTORY_PICTURES);
-        File image = File.createTempFile(imageFileName, ".jpg",storageDir);
+        File image = File.createTempFile(imageFileName, ".jpg", storageDir);
         mCurrentPhotoPath = image.getAbsolutePath();
         return image;
     }
-
 
 
     public void scrollPhotos(View v) throws IOException {
@@ -196,12 +209,11 @@ public class MainActivity extends AppCompatActivity {
     private void displayPhoto(String path) throws IOException {
         ImageView iv = (ImageView) findViewById(R.id.ivGallery);
         TextView tv = (TextView) findViewById(R.id.tvTimestamp);
-        TextView tvLocation = (TextView)findViewById(R.id.location);
+        TextView tvLocation = (TextView) findViewById(R.id.location);
         EditText et = (EditText) findViewById(R.id.etCaption);
 
 
-
-        if (path == null || path =="") {
+        if (path == null || path == "") {
             iv.setImageResource(R.mipmap.ic_launcher);
             et.setText("");
             tv.setText("");
@@ -211,9 +223,9 @@ public class MainActivity extends AppCompatActivity {
             String lat = exif.getAttribute(ExifInterface.TAG_GPS_LATITUDE);
             String lng = exif.getAttribute(ExifInterface.TAG_GPS_LONGITUDE);
 
-            iv.setImageBitmap(BitmapFactory.decodeFile(path));
+            iv.setImageBitmap(BitmapFactory.decodeFile(photos.get(index)));
             String[] attr = path.split("_");
-            tvLocation.setText(lat+ " " + lng);
+            tvLocation.setText(Debug.getLocation());
 //            et.setText(attr[1]);
             et.setText(attr[1]);
             tv.setText(attr[2]);
@@ -226,7 +238,7 @@ public class MainActivity extends AppCompatActivity {
         if (requestCode == SEARCH_ACTIVITY_REQUEST_CODE) {
             if (resultCode == RESULT_OK) {
                 DateFormat format = new SimpleDateFormat("yyyy‐MM‐dd HH:mm:ss");
-                Date startTimestamp , endTimestamp;
+                Date startTimestamp, endTimestamp;
                 try {
                     String from = (String) data.getStringExtra("STARTTIMESTAMP");
                     String to = (String) data.getStringExtra("ENDTIMESTAMP");
