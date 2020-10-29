@@ -2,17 +2,22 @@ package com.example.photogallery;
 
 
 import android.Manifest;
+import android.app.Activity;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.database.Cursor;
 import android.graphics.BitmapFactory;
 import android.location.Location;
 import android.location.LocationManager;
 import android.media.ExifInterface;
+import android.media.Image;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
+import android.os.FileUtils;
 import android.provider.MediaStore;
+import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.EditText;
@@ -33,6 +38,8 @@ import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Date;
+
+
 
 public class MainActivity extends AppCompatActivity {
 
@@ -99,7 +106,6 @@ public class MainActivity extends AppCompatActivity {
 
     }
 
-
     public void toSearch(View view) {
         // Do something in response to button
         Intent intent = new Intent(this, SearchActivity.class);
@@ -112,7 +118,6 @@ public class MainActivity extends AppCompatActivity {
         } else {
             takePhoto();
         }
-
     }
 
     @Override
@@ -140,6 +145,7 @@ public class MainActivity extends AppCompatActivity {
                 super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         }
     }
+
 
     public void takePhoto() {
         Intent takePictureIntent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
@@ -176,6 +182,7 @@ public class MainActivity extends AppCompatActivity {
         return photos;
     }
 
+
     private File createImageFile() throws IOException {
 // Create an image file name
         String timeStamp = new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date());
@@ -188,6 +195,7 @@ public class MainActivity extends AppCompatActivity {
 
 
     public void scrollPhotos(View v) throws IOException {
+
         updatePhoto(photos.get(index), ((EditText) findViewById(R.id.etCaption)).getText().toString());
         switch (v.getId()) {
             case R.id.btnPrev:
@@ -206,6 +214,19 @@ public class MainActivity extends AppCompatActivity {
         displayPhoto(photos.get(index));
     }
 
+    private String getRealPathFromURI(Uri contentURI, Activity activity) {
+        Cursor cursor = activity.getContentResolver()
+                .query(contentURI, null, null, null, null);
+        if (cursor == null) { // Source is Dropbox or other similar local file
+            // path
+            return contentURI.getPath();
+        } else {
+            cursor.moveToFirst();
+            int idx = cursor.getColumnIndex(MediaStore.Images.ImageColumns.DATA);
+            return cursor.getString(idx);
+        }
+    }
+
     private void displayPhoto(String path) throws IOException {
         ImageView iv = (ImageView) findViewById(R.id.ivGallery);
         TextView tv = (TextView) findViewById(R.id.tvTimestamp);
@@ -213,24 +234,42 @@ public class MainActivity extends AppCompatActivity {
         EditText et = (EditText) findViewById(R.id.etCaption);
 
 
-        if (path == null || path == "") {
+        if (path == null || path =="") {
+
             iv.setImageResource(R.mipmap.ic_launcher);
             et.setText("");
             tv.setText("");
-
         } else {
+            iv.setImageBitmap(BitmapFactory.decodeFile(path));
+            String[] attr = path.split("_");
+
+
+
             ExifInterface exif = new ExifInterface(path);
             String lat = exif.getAttribute(ExifInterface.TAG_GPS_LATITUDE);
             String lng = exif.getAttribute(ExifInterface.TAG_GPS_LONGITUDE);
 
+
             iv.setImageBitmap(BitmapFactory.decodeFile(photos.get(index)));
-            String[] attr = path.split("_");
+
             tvLocation.setText(Debug.getLocation());
-//            et.setText(attr[1]);
+
+
             et.setText(attr[1]);
             tv.setText(attr[2]);
         }
+
+        path = Environment.getExternalStorageDirectory().toString()+"/Android/data/com.example.photogallery/files/Pictures";
+        Log.d("Files", "Path: " + path);
+        File directory = new File(path);
+        File[] files = directory.listFiles();
+        Log.d("Files", "Size: "+ files.length);
+        for (int i = 0; i < files.length; i++)
+        {
+            Log.d("Files", "FileName:" + files[i].getName());
+        }
     }
+
 
     @Override
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
@@ -274,15 +313,19 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    // may cause program quit
-    private void updatePhoto(String path, String caption) {
-        String[] attr = path.split("_");
-        if (attr.length >= 3) {
-            File to = new File(attr[0] + "_" + caption + "_" + attr[2] + "_" + attr[3]);
-            File from = new File(path);
-            from.renameTo(to);
-        }
+    public interface updater{
+        public void updatePhoto(String path, String caption);
     }
 
+    // may cause program quit
+
+        public void updatePhoto(String path, String caption) {
+            String[] attr = path.split("_");
+            if (attr.length >= 3) {
+                File to = new File(attr[0] + "_" + caption + "_" + attr[2] + "_" + attr[3]);
+                File from = new File(path);
+                from.renameTo(to);
+            }
+        }
 
 }
